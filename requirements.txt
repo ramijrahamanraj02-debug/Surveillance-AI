@@ -1,0 +1,7 @@
+# SecureVision AI Surveillance System Requirements
+opencv-python>=4.8.0
+numpy>=1.24.0
+pillow>=9.5.0
+cryptography>=41.0.0
+# Optional for YOLOv11 weapon model inference
+# ultralytics>=8.3.0

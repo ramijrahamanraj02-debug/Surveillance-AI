@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SecureVision AI — Mobile Camera Broadcaster Node</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@600;700;800&display=swap"
+    rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #07090E;
+      --bg-panel: rgba(17, 24, 39, 0.9);
+      --accent-cyan: #06B6D4;
+      --accent-blue: #3B82F6;
+      --color-live: #10B981;
+      --color-alert: #EF4444;
+      --text-primary: #F9FAFB;
+      --text-secondary: #94A3B8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top HUD Header */
+    .mobile-hud-header {
+      background: rgba(11, 15, 25, 0.95);
+      border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #1D4ED8, #06B6D4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
+    }
+
+    .brand-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: #fff;
+    }
+
+    .brand-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.1;
+    }
+
+    .brand-sub {
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stream-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34D399;
+    }
+
+    .stream-status-pill.offline {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #F87171;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10B981;
+      box-shadow: 0 0 8px #10B981;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        opacity: 0.5;
+        transform: scale(0.9);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.2);
+      }
+
+      100% {
+        opacity: 0.5;
+        transform: scale(0.9);
+      }
+    }
+
+    /* Video Viewport Area */
+    .camera-viewport-container {
+      flex: 1;
+      position: relative;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #mobile-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #hidden-canvas {
+      display: none;
+    }
+
+    /* Camera Viewfinder Crosshairs */
+    .viewfinder-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 220px;
+      height: 220px;
+      transform: translate(-50%, -50%);
+      border: 1px dashed rgba(6, 182, 212, 0.4);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+
+    .crosshair-corner {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: var(--accent-cyan);
+      border-style: solid;
+    }
+
+    .corner-tl {
+      top: -1px;
+      left: -1px;
+      border-width: 3px 0 0 3px;
+      border-top-left-radius: 6px;
+    }
+
+    .corner-tr {
+      top: -1px;
+      right: -1px;
+      border-width: 3px 3px 0 0;
+      border-top-right-radius: 6px;
+    }
+
+    .corner-bl {
+      bottom: -1px;
+      left: -1px;
+      border-width: 0 0 3px 3px;
+      border-bottom-left-radius: 6px;
+    }
+
+    .corner-br {
+      bottom: -1px;
+      right: -1px;
+      border-width: 0 3px 3px 0;
+      border-bottom-right-radius: 6px;
+    }
+
+    .viewfinder-label {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-cyan);
+      background: rgba(0, 0, 0, 0.6);
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    /* Telemetry Overlay */
+    .telemetry-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.85);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+      pointer-events: none;
+    }
+
+    .telemetry-pill {
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(6px);
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Bottom Control Bar */
+    .mobile-controls-panel {
+      background: rgba(11, 15, 25, 0.95);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    .controls-grid {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      gap: 12px;
+    }
+
+    .control-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 8px;
+      background: rgba(26, 34, 52, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .control-btn:active {
+      transform: scale(0.96);
+      background: rgba(37, 99, 235, 0.3);
+    }
+
+    .control-btn svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .broadcast-toggle-btn {
+      flex: 1.4;
+      background: linear-gradient(135deg, #10B981, #059669);
+      border: none;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+      padding: 12px;
+    }
+
+    .broadcast-toggle-btn.broadcasting {
+      background: linear-gradient(135deg, #DC2626, #B91C1C);
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+    }
+
+    .system-info-footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top Mobile HUD Header -->
+  <header class="mobile-hud-header">
+    <div class="brand-group">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">SecureVision AI</div>
+        <div class="brand-sub">Mobile CCTV Node • CAM-03</div>
+      </div>
+    </div>
+
+    <div class="stream-status-pill" id="status-pill">
+      <span class="pulse-dot" id="status-dot"></span>
+      <span id="status-text">LIVE STREAM</span>
+    </div>
+  </header>
+
+  <!-- Video Viewport & Camera Stream -->
+  <div class="camera-viewport-container">
+    <video id="mobile-video" autoplay playsinline muted></video>
+    <canvas id="hidden-canvas"></canvas>
+
+    <!-- Telemetry Overlay -->
+    <div class="telemetry-overlay">
+      <div class="telemetry-pill">
+        <span id="fps-label">FPS: 28</span> • <span id="res-label">720p HD</span>
+      </div>
+      <div class="telemetry-pill" style="color: var(--accent-cyan);">
+        RELAY: <span id="latency-label">18ms</span>
+      </div>
+    </div>
+
+    <!-- Viewfinder Crosshairs -->
+    <div class="viewfinder-crosshair">
+      <div class="crosshair-corner corner-tl"></div>
+      <div class="crosshair-corner corner-tr"></div>
+      <div class="crosshair-corner corner-bl"></div>
+      <div class="crosshair-corner corner-br"></div>
+      <div class="viewfinder-label">AI WEAPON & TARGET ZONE</div>
+    </div>
+  </div>
+
+  <!-- Mobile Controls Panel -->
+  <div class="mobile-controls-panel">
+    <div class="controls-grid">
+      <!-- Switch Camera (Front / Back) -->
+      <button class="control-btn" id="switch-cam-btn" onclick="switchCameraFacing()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span>Switch Cam</span>
+      </button>
+
+      <!-- Broadcast Start/Stop Button -->
+      <button class="control-btn broadcast-toggle-btn" id="broadcast-btn" onclick="toggleBroadcast()">
+        <svg fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.8 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z" />
+        </svg>
+        <span id="broadcast-btn-text">Broadcasting</span>
+      </button>
+
+      <!-- Flash / Torch Toggle -->
+      <button class="control-btn" id="torch-btn" onclick="toggleTorch()">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span>Flashlight</span>
+      </button>
+    </div>
+
+    <div class="system-info-footer" id="footer-info">
+      <span id="server-url-tag">SERVER: LIVE RELAY</span>
+      <span>TARGET: CAM-03</span>
+    </div>
+  </div>
+
+  <!-- Desktop Browser Protection Modal -->
+  <div id="desktop-warning-overlay"
+    style="display: none; position: fixed; inset: 0; background: rgba(7, 9, 14, 0.95); z-index: 100; align-items: center; justify-content: center; padding: 20px;">
+    <div
+      style="background: #111827; border: 1px solid rgba(245, 158, 11, 0.5); border-radius: 12px; max-width: 440px; padding: 24px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+      <div style="font-size: 2.2rem; margin-bottom: 12px;">⚠️</div>
+      <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; color: #F59E0B; margin-bottom: 10px;">Desktop /
+        Laptop Browser Detected</h3>
+      <p style="font-size: 0.85rem; color: #94A3B8; line-height: 1.5; margin-bottom: 18px;">
+        This page acts as the <strong>CAM-03 Mobile Camera Relay</strong> node. If you broadcast from this
+        laptop/desktop, you will stream your computer's webcam to CAM-03 instead of a real mobile phone.
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <button onclick="window.location.href='/'"
+          style="background: linear-gradient(135deg, #1D4ED8, #06B6D4); color: #fff; border: none; padding: 11px 16px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer;">
+          ← Return to Inside Security Dashboard
+        </button>
+        <button onclick="dismissDesktopWarning()"
+          style="background: transparent; color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.4); padding: 9px 16px; border-radius: 8px; font-size: 0.82rem; cursor: pointer;">
+          Broadcast Desktop Camera (Testing Mode)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStream = null;
+    let facingMode = 'environment'; // 'user' or 'environment'
+    let isBroadcasting = true;
+    let broadcastIntervalId = null;
+    let frameCount = 0;
+    let lastFPSCheck = performance.now();
+    let torchActive = false;
+
+    function isMobileDevice() {
+      return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 900);
+    }
+
+    function dismissDesktopWarning() {
+      document.getElementById('desktop-warning-overlay').style.display = 'none';
+      isBroadcasting = true;
+      initCamera();
+    }
+
+    async function initCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.warn('navigator.mediaDevices.getUserMedia not supported or requires secure context (HTTPS/localhost)');
+        const statusText = document.getElementById('status-text');
+        if (statusText) statusText.innerText = 'HTTPS REQUIRED';
+        const pill = document.getElementById('status-pill');
+        if (pill) pill.classList.add('offline');
+        alert('Camera API requires a secure context. If connecting from a mobile phone over LAN IP, please run over HTTPS (run_https.bat on port 8443) or use localhost.');
+        return;
+      }
+
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 }
+          },
+          audio: false
+        });
+      } catch (e1) {
+        try {
+          // Fallback to basic video constraint if ideal facing/resolution failed
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (err) {
+          console.error('Camera access error:', err);
+          const statusText = document.getElementById('status-text');
+          if (statusText) statusText.innerText = 'PERMISSION DENIED';
+          const pill = document.getElementById('status-pill');
+          if (pill) pill.classList.add('offline');
+          alert('Camera permission denied or camera device unavailable. If using a phone over LAN IP, modern mobile browsers require HTTPS for camera access.');
+          return;
+        }
+      }
+
+      currentStream = stream;
+      const video = document.getElementById('mobile-video');
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        video.play().catch(e => console.warn('Autoplay prevented:', e));
+        document.getElementById('res-label').innerText = `${video.videoWidth || 1280}x${video.videoHeight || 720}`;
+        startFrameBroadcast();
+      };
+    }
+
+    function startFrameBroadcast() {
+      if (broadcastIntervalId) clearInterval(broadcastIntervalId);
+      const canvas = document.getElementById('hidden-canvas');
+      const ctx = canvas.getContext('2d');
+      const video = document.getElementById('mobile-video');
+
+      broadcastIntervalId = setInterval(() => {
+        if (!isBroadcasting || video.readyState !== 4) return;
+
+        canvas.width = 640;
+        canvas.height = 360;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const base64JPEG = canvas.toDataURL('image/jpeg', 0.65);
+        frameCount++;
+
+        // Send frame to server relay buffer
+        fetch('/api/stream/mobile-frame', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_data: base64JPEG,
+            device_info: `Mobile Node (${facingMode})`,
+            timestamp: Date.now()
+          })
+        }).catch(() => { });
+
+        // Calculate FPS
+        const now = performance.now();
+        if (now - lastFPSCheck >= 1000) {
+          const fps = Math.round((frameCount * 1000) / (now - lastFPSCheck));
+          document.getElementById('fps-label').innerText = `FPS: ${fps}`;
+          frameCount = 0;
+          lastFPSCheck = now;
+        }
+      }, 50); // ~20-25 FPS upload
+    }
+
+    function switchCameraFacing() {
+      facingMode = facingMode === 'environment' ? 'user' : 'environment';
+      initCamera();
+    }
+
+    function toggleBroadcast() {
+      isBroadcasting = !isBroadcasting;
+      const btn = document.getElementById('broadcast-btn');
+      const btnText = document.getElementById('broadcast-btn-text');
+      const statusPill = document.getElementById('status-pill');
+      const statusText = document.getElementById('status-text');
+
+      if (isBroadcasting) {
+        btn.classList.add('broadcasting');
+        btnText.innerText = 'Broadcasting';
+        statusPill.classList.remove('offline');
+        statusText.innerText = 'LIVE STREAM';
+      } else {
+        btn.classList.remove('broadcasting');
+        btnText.innerText = 'Start Stream';
+        statusPill.classList.add('offline');
+        statusText.innerText = 'PAUSED';
+      }
+    }
+
+    async function toggleTorch() {
+      if (!currentStream) return;
+      const track = currentStream.getVideoTracks()[0];
+      if (!track) return;
+
+      try {
+        torchActive = !torchActive;
+        await track.applyConstraints({
+          advanced: [{ torch: torchActive }]
+        });
+      } catch (e) {
+        console.warn('Torch constraint not supported on this device/browser');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const srvTag = document.getElementById('server-url-tag');
+      if (srvTag) srvTag.innerText = `SERVER: ${window.location.origin}`;
+
+      if (!isMobileDevice()) {
+        isBroadcasting = false;
+        document.getElementById('desktop-warning-overlay').style.display = 'flex';
+      } else {
+        initCamera();
+      }
+    });
+  </script>
+</body>
+
+</html>
